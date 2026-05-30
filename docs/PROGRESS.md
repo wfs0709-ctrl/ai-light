@@ -66,11 +66,17 @@
 - Windows installers produced:
   - `target/release/bundle/msi/AI Light_0.1.0_x64_en-US.msi`
   - `target/release/bundle/nsis/AI Light_0.1.0_x64-setup.exe`
+- Release app smoke test passes:
+  - `target/release/ai-light.exe` starts successfully.
+  - `~/.ai_light/runtime.json` is written with the HTTP port.
+  - Bundled hook binary is copied to `~/.ai_light/bin/ai-light-hook.exe`.
+  - `GET /health` returns `200 ok`.
+  - Manual `POST /events` returns `200 ok`.
+  - `~/.ai_light/bin/ai-light-hook.exe` successfully sends `UserPromptSubmit`, `Stop`, and `SessionEnd` events from stdin.
 
 ## Remaining Work
 
 - Install Tauri CLI globally if desired; current successful packaging used `npx @tauri-apps/cli@2.11.2 build`.
 - Add cross-platform packaging configuration for non-Windows hook binary names if macOS/Linux installers are needed.
-- Run the packaged app or `npx @tauri-apps/cli@2.11.2 dev` for manual UI testing.
-- Validate real Claude Code hook flow: install hooks, run a session, verify idle/working/done/error transitions.
+- Validate real Claude Code hook flow after user approval to modify `~/.claude/settings.json`: install hooks, run a session, verify idle/working/done/error transitions.
 - Decide whether Codex file watching belongs in this MVP or the next iteration; validation data exists, runtime watcher is not implemented yet.
