@@ -161,7 +161,7 @@ function createLightElement({ label, status, title, standby = false }) {
   labelEl.className = "light-label";
   labelEl.textContent = label || "unknown";
 
-  root.append(housing, labelEl);
+  root.append(labelEl, housing);
   return root;
 }
 
