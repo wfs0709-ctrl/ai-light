@@ -34,6 +34,26 @@ body {
   background: var(--hit-test-bg);
 }
 
+.app-handle {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: rgba(229, 231, 235, 0.78);
+  background: rgba(17, 20, 24, 0.86);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: default;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .traffic-light {
   width: 60px;
   display: grid;
@@ -116,10 +136,6 @@ body {
   white-space: nowrap;
   background: var(--hit-test-bg);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
-}
-
-.traffic-light.standby .light-label {
-  color: rgba(156, 163, 175, 0.74);
 }
 
 .menu {

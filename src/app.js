@@ -9,8 +9,8 @@ const lightElements = new Map();
 
 const container = document.getElementById("lights-container");
 const menu = document.getElementById("menu");
-const standbyLight = createStandbyLight();
-container.appendChild(standbyLight);
+const appHandle = createAppHandle();
+container.appendChild(appHandle);
 
 tauriEvent?.listen("state-changed", (event) => {
   lights = Array.isArray(event.payload) ? event.payload : [];
@@ -76,6 +76,7 @@ document.addEventListener("pointerup", () => {
 
 function render() {
   const visibleProjectIds = new Set(lights.map((light) => light.project_id));
+  appHandle.hidden = lights.length > 0;
 
   for (const light of lights) {
     let element = lightElements.get(light.project_id);
@@ -96,13 +97,11 @@ function render() {
   }
 }
 
-function createStandbyLight() {
-  const root = createLightElement({
-    label: "AI Light",
-    status: "Idle",
-    title: "AI Light",
-    standby: true,
-  });
+function createAppHandle() {
+  const root = document.createElement("section");
+  root.className = "app-handle";
+  root.title = "AI Light";
+  root.textContent = "AI";
 
   root.addEventListener("contextmenu", (event) => {
     event.preventDefault();
