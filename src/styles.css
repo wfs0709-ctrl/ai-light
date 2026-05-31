@@ -8,7 +8,7 @@
   color-scheme: dark;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: transparent;
-  --hit-test-bg: rgba(0, 0, 0, 0.01);
+  --hit-test-bg: transparent;
 }
 
 html,
@@ -129,7 +129,7 @@ body {
 
 .light-label {
   width: 60px;
-  color: rgba(229, 231, 235, 0.82);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 10px;
   font-weight: 650;
   line-height: 16px;
@@ -138,7 +138,16 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   background: var(--hit-test-bg);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.95),
+    0 -1px 0 rgba(0, 0, 0, 0.95),
+    1px -1px 0 rgba(0, 0, 0, 0.95),
+    -1px 0 0 rgba(0, 0, 0, 0.95),
+    1px 0 0 rgba(0, 0, 0, 0.95),
+    -1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 1px 0 rgba(0, 0, 0, 0.95),
+    1px 1px 0 rgba(0, 0, 0, 0.95),
+    0 2px 4px rgba(0, 0, 0, 0.85);
 }
 
 .menu {
