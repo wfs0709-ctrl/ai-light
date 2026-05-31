@@ -1,7 +1,9 @@
 # AI Light
 
 Cross-platform desktop traffic light widget for monitoring AI coding assistants (Claude Code, Codex).
-<img width="1010" height="557" alt="image" src="https://github.com/user-attachments/assets/4694771f-e718-4fa4-86ee-83e0973d2a69" />
+
+
+<img width="806" height="458" alt="image" src="https://github.com/user-attachments/assets/924ac6a8-feeb-4a98-af09-01afd2fb3e24" />
 
 
 ## Status
