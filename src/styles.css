@@ -22,20 +22,20 @@ body {
 }
 
 body {
-  padding: 8px;
+  padding: 10px;
 }
 
 #lights-container {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  min-height: 124px;
+  min-height: 132px;
 }
 
 .traffic-light {
   width: 60px;
   display: grid;
-  grid-template-rows: 96px 18px;
+  grid-template-rows: 108px 18px;
   gap: 4px;
   justify-items: center;
   cursor: default;
@@ -47,9 +47,11 @@ body {
 
 .light-housing {
   width: 52px;
-  height: 96px;
+  height: 108px;
   display: grid;
-  grid-template-rows: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 28px);
+  align-content: center;
+  justify-items: center;
   gap: 6px;
   padding: 8px;
   border-radius: 8px;
@@ -60,8 +62,8 @@ body {
 }
 
 .lamp {
-  width: 100%;
-  aspect-ratio: 1;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   transition: opacity 120ms linear, transform 120ms linear, background 120ms linear;
 }

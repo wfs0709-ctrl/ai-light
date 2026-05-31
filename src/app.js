@@ -87,6 +87,7 @@ function createLightElement({ label, status, title, standby = false }) {
   root.className = `traffic-light${standby ? " standby" : ""}`;
   root.title = title;
   root.dataset.status = status;
+  root.dataset.tauriDragRegion = "";
 
   const housing = document.createElement("div");
   housing.className = "light-housing";
@@ -99,6 +100,7 @@ function createLightElement({ label, status, title, standby = false }) {
   const labelEl = document.createElement("div");
   labelEl.className = "light-label";
   labelEl.textContent = label || "unknown";
+  labelEl.dataset.tauriDragRegion = "";
 
   root.append(housing, labelEl);
   return root;
