@@ -3,7 +3,9 @@ use ai_light::config::{
     get_config_dir, get_config_path, get_lock_path, get_log_path, get_runtime_path,
     load_app_config, load_runtime_config, save_app_config,
 };
-use ai_light::hook_installer::{check_hooks_installed, install_hooks, preview_hook_config};
+use ai_light::hook_installer::{
+    check_hooks_installed, install_hooks, preview_hook_config, remove_hooks,
+};
 use ai_light::types::LightState;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -172,6 +174,11 @@ pub fn check_hooks() -> bool {
 #[tauri::command]
 pub fn install_hooks_command() -> Result<(), String> {
     install_hooks().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn remove_hooks_command() -> Result<(), String> {
+    remove_hooks().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

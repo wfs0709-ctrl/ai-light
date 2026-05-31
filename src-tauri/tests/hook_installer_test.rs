@@ -1,4 +1,4 @@
-use ai_light::hook_installer::{hook_binary_is_current, merge_hooks};
+use ai_light::hook_installer::{hook_binary_is_current, merge_hooks, remove_ai_light_hooks};
 use serde_json::json;
 use std::path::Path;
 
@@ -88,8 +88,54 @@ fn merge_hooks_replaces_existing_ai_light_hooks_for_same_event() {
     assert_eq!(session_start.len(), 1);
     assert_eq!(
         session_start[0]["hooks"][0]["command"],
-        "/new/ai-light-hook session-start"
+        "/new/ai-light-hook"
     );
+    assert_eq!(session_start[0]["hooks"][0]["args"][0], "session-start");
+}
+
+#[test]
+fn merge_hooks_writes_event_as_args_to_avoid_shell_parsing() {
+    let hook_path = Path::new(r"C:\Users\kemp\.ai_light\bin\ai-light-hook.exe");
+    let merged = merge_hooks(json!({}), hook_path).unwrap();
+    let hook = &merged["hooks"]["Notification"][0]["hooks"][0];
+
+    assert_eq!(
+        hook["command"],
+        r"C:\Users\kemp\.ai_light\bin\ai-light-hook.exe"
+    );
+    assert_eq!(hook["args"][0], "notification");
+}
+
+#[test]
+fn remove_ai_light_hooks_preserves_other_hooks_and_settings() {
+    let existing = json!({
+        "hooks": {
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": "/old/ai-light-hook session-start"}]
+                },
+                {
+                    "matcher": "",
+                    "hooks": [{"type": "command", "command": "echo existing"}]
+                }
+            ],
+            "Stop": [{
+                "matcher": "",
+                "hooks": [{"type": "command", "command": "/old/ai-light-hook stop"}]
+            }]
+        },
+        "theme": "dark"
+    });
+
+    let cleaned = remove_ai_light_hooks(existing).unwrap();
+
+    assert_eq!(cleaned["theme"], "dark");
+    assert_eq!(
+        cleaned["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+        "echo existing"
+    );
+    assert!(cleaned["hooks"].get("Stop").is_none());
 }
 
 #[test]

@@ -95,9 +95,17 @@ dd {
   font-size: 13px;
 }
 
+.integration {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 #status {
   min-height: 20px;
-  margin-top: 18px;
+  margin-top: 14px;
   color: #93c5fd;
   font-size: 13px;
 }
@@ -143,4 +151,26 @@ button.primary {
 
 button.primary:hover {
   background: #1d4ed8;
+}
+
+button#install-integration {
+  width: 100%;
+  border-color: rgba(56, 189, 248, 0.38);
+  color: #dbeafe;
+  background: rgba(14, 116, 144, 0.32);
+}
+
+button#install-integration:hover {
+  background: rgba(8, 145, 178, 0.44);
+}
+
+button.danger {
+  width: 100%;
+  border-color: rgba(248, 113, 113, 0.38);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.34);
+}
+
+button.danger:hover {
+  background: rgba(153, 27, 27, 0.48);
 }

@@ -29,7 +29,7 @@
         "title": "AI Light Settings",
         "url": "settings.html",
         "width": 480,
-        "height": 360,
+        "height": 450,
         "resizable": false,
         "decorations": true,
         "transparent": false,
@@ -47,6 +47,17 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.ico", "icons/icon.png"]
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "resources": {
+      "../target/release/ai-light-hook.exe": "ai-light-hook.exe",
+      "../target/release/WebView2Loader.dll": "WebView2Loader.dll"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "wix": null
+    }
   }
 }

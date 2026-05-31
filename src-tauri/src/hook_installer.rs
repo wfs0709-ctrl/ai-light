@@ -63,7 +63,7 @@ pub fn merge_hooks(mut existing: Value, hook_path: &Path) -> Result<Value, Strin
         .and_then(Value::as_object_mut)
         .ok_or_else(|| "settings hooks field must be a JSON object".to_string())?;
 
-    let command_path = shell_command_path(hook_path);
+    let command_path = hook_path.to_string_lossy().to_string();
 
     for (claude_event, hook_event) in HOOK_EVENTS {
         let event_hooks = hooks
@@ -77,7 +77,8 @@ pub fn merge_hooks(mut existing: Value, hook_path: &Path) -> Result<Value, Strin
             "matcher": "",
             "hooks": [{
                 "type": "command",
-                "command": format!("{command_path} {hook_event}")
+                "command": command_path.clone(),
+                "args": [hook_event]
             }]
         }));
     }
@@ -94,8 +95,7 @@ pub fn install_hooks() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let existing = if settings_path.exists() {
-        let content = fs::read_to_string(&settings_path)?;
-        serde_json::from_str(&content)?
+        read_settings_json(&settings_path)?
     } else {
         json!({})
     };
@@ -114,10 +114,30 @@ pub fn install_hooks() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub fn remove_hooks() -> Result<(), Box<dyn std::error::Error>> {
+    let settings_path = get_claude_settings_path();
+    if settings_path.exists() {
+        let existing = read_settings_json(&settings_path)?;
+        let cleaned = remove_ai_light_hooks(existing)?;
+
+        fs::copy(
+            &settings_path,
+            settings_path.with_extension("json.ai-light-remove.bak"),
+        )?;
+        fs::write(&settings_path, serde_json::to_string_pretty(&cleaned)?)?;
+    }
+
+    let hook_path = get_hook_binary_path();
+    if hook_path.exists() {
+        fs::remove_file(hook_path)?;
+    }
+
+    Ok(())
+}
+
 pub fn preview_hook_config() -> Result<String, String> {
     let existing = if get_claude_settings_path().exists() {
-        let content = fs::read_to_string(get_claude_settings_path()).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).map_err(|e| e.to_string())?
+        read_settings_json(&get_claude_settings_path()).map_err(|e| e.to_string())?
     } else {
         json!({})
     };
@@ -131,7 +151,8 @@ pub fn check_hooks_installed() -> bool {
         return false;
     };
 
-    let Ok(settings) = serde_json::from_str::<Value>(&content) else {
+    let content = content.strip_prefix('\u{feff}').unwrap_or(&content);
+    let Ok(settings) = serde_json::from_str::<Value>(content) else {
         return false;
     };
 
@@ -149,6 +170,35 @@ pub fn check_hooks_installed() -> bool {
                     .any(|entry| contains_ai_light_hook_for_event(entry, hook_event))
             })
     })
+}
+
+pub fn remove_ai_light_hooks(mut existing: Value) -> Result<Value, String> {
+    if !existing.is_object() {
+        return Err("settings root must be a JSON object".to_string());
+    }
+
+    let Some(hooks) = existing.get_mut("hooks") else {
+        return Ok(existing);
+    };
+
+    let hooks = hooks
+        .as_object_mut()
+        .ok_or_else(|| "settings hooks field must be a JSON object".to_string())?;
+    let event_names: Vec<_> = hooks.keys().cloned().collect();
+
+    for event_name in event_names {
+        let Some(event_hooks) = hooks.get_mut(&event_name).and_then(Value::as_array_mut) else {
+            continue;
+        };
+
+        remove_existing_ai_light_hooks(event_hooks);
+
+        if event_hooks.is_empty() {
+            hooks.remove(&event_name);
+        }
+    }
+
+    Ok(existing)
 }
 
 fn hook_binary_name() -> &'static str {
@@ -190,12 +240,23 @@ fn contains_ai_light_hook_for_event(entry: &Value, hook_event: &str) -> bool {
     };
 
     commands.iter().any(|command| {
-        command
+        let command_matches = command
             .get("command")
             .and_then(Value::as_str)
-            .is_some_and(|command| {
-                command.contains(hook_binary_name()) && command.contains(hook_event)
-            })
+            .is_some_and(|command| command.contains(hook_binary_name()));
+
+        if !command_matches {
+            return false;
+        }
+
+        command
+            .get("args")
+            .and_then(Value::as_array)
+            .is_some_and(|args| args.iter().any(|arg| arg.as_str() == Some(hook_event)))
+            || command
+                .get("command")
+                .and_then(Value::as_str)
+                .is_some_and(|command| command.contains(hook_event))
     })
 }
 
@@ -207,14 +268,10 @@ pub fn hook_binary_is_current(source: &Path, destination: &Path) -> Result<bool,
     Ok(fs::read(source)? == fs::read(destination)?)
 }
 
-fn shell_command_path(path: &Path) -> String {
-    let path = path.to_string_lossy();
-
-    if path.contains(' ') {
-        format!("\"{}\"", path.replace('"', "\\\""))
-    } else {
-        path.to_string()
-    }
+fn read_settings_json(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(path)?;
+    let content = content.strip_prefix('\u{feff}').unwrap_or(&content);
+    Ok(serde_json::from_str(content)?)
 }
 
 fn home_dir() -> Option<PathBuf> {

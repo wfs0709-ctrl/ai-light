@@ -42,6 +42,7 @@ fn main() {
             ipc::open_settings,
             ipc::check_hooks,
             ipc::install_hooks_command,
+            ipc::remove_hooks_command,
             ipc::preview_hook_config_command,
             ipc::quit_app
         ])
