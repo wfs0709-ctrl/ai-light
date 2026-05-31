@@ -10,6 +10,7 @@ let lastWindowSize = { width: 0, height: 0 };
 let resizeFrame = 0;
 const WINDOW_GUTTER_X = 8;
 const WINDOW_GUTTER_Y = 26;
+const WINDOW_PAINT_OVERFLOW_X_PER_LIGHT = 16;
 
 const container = document.getElementById("lights-container");
 const menu = document.getElementById("menu");
@@ -263,7 +264,12 @@ async function resizeWindowToContent() {
     parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom);
 
   const contentSize = measureVisibleContent();
-  let width = Math.ceil(contentSize.width + paddingX + WINDOW_GUTTER_X);
+  let width = Math.ceil(
+    contentSize.width +
+      paddingX +
+      WINDOW_GUTTER_X +
+      contentSize.count * WINDOW_PAINT_OVERFLOW_X_PER_LIGHT,
+  );
   let height = Math.ceil(contentSize.height + paddingY + WINDOW_GUTTER_Y);
 
   if (!menu.hidden) {
@@ -301,7 +307,7 @@ async function resizeWindowToContent() {
 function measureVisibleContent() {
   const children = [...container.children].filter((child) => !child.hidden);
   if (children.length === 0) {
-    return { width: 0, height: 0 };
+    return { width: 0, height: 0, count: 0 };
   }
 
   const containerStyle = getComputedStyle(container);
@@ -311,7 +317,7 @@ function measureVisibleContent() {
     gap * Math.max(0, children.length - 1);
   const height = Math.max(...children.map((child) => child.offsetHeight));
 
-  return { width, height };
+  return { width, height, count: children.length };
 }
 
 function shouldStartDrag(event) {

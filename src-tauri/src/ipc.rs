@@ -12,7 +12,7 @@ use std::fs;
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{AppHandle, LogicalSize, Manager, Size, State};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, State};
 
 #[derive(Debug, Serialize)]
 pub struct Diagnostics {
@@ -163,7 +163,50 @@ pub fn resize_main_window(app: AppHandle, width: f64, height: f64) -> Result<(),
 
     window
         .set_size(Size::Logical(LogicalSize::new(width, height)))
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+
+    keep_window_on_current_monitor(&window)?;
+    Ok(())
+}
+
+fn keep_window_on_current_monitor(window: &tauri::WebviewWindow) -> Result<(), String> {
+    let Some(monitor) = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(());
+    };
+
+    let position = window.outer_position().map_err(|error| error.to_string())?;
+    let size = window.outer_size().map_err(|error| error.to_string())?;
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+
+    let monitor_left = monitor_position.x;
+    let monitor_top = monitor_position.y;
+    let monitor_right = monitor_left + monitor_size.width as i32;
+    let monitor_bottom = monitor_top + monitor_size.height as i32;
+
+    let mut next_x = position.x;
+    let mut next_y = position.y;
+
+    if next_x + size.width as i32 > monitor_right {
+        next_x = monitor_right - size.width as i32;
+    }
+    if next_y + size.height as i32 > monitor_bottom {
+        next_y = monitor_bottom - size.height as i32;
+    }
+
+    next_x = next_x.max(monitor_left);
+    next_y = next_y.max(monitor_top);
+
+    if next_x != position.x || next_y != position.y {
+        window
+            .set_position(Position::Physical(PhysicalPosition::new(next_x, next_y)))
+            .map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
 }
 
 fn validate_http_bind(bind: &str) -> Result<(), String> {
