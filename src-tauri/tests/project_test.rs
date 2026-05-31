@@ -18,7 +18,10 @@ fn identifies_git_root_from_nested_directory() {
 
     let (project_id, project_label) = identify_project(&nested);
 
-    assert_eq!(Path::new(&project_id), repo.canonicalize().unwrap());
+    assert_eq!(
+        Path::new(&project_id),
+        strip_windows_verbatim_prefix(&repo.canonicalize().unwrap())
+    );
     assert_eq!(project_label, repo.file_name().unwrap().to_string_lossy());
 
     std::fs::remove_dir_all(repo).unwrap();
@@ -31,7 +34,10 @@ fn falls_back_to_cwd_outside_git_repo() {
 
     let (project_id, project_label) = identify_project(&cwd);
 
-    assert_eq!(Path::new(&project_id), cwd.canonicalize().unwrap());
+    assert_eq!(
+        Path::new(&project_id),
+        strip_windows_verbatim_prefix(&cwd.canonicalize().unwrap())
+    );
     assert_eq!(project_label, cwd.file_name().unwrap().to_string_lossy());
 
     std::fs::remove_dir_all(cwd).unwrap();
@@ -44,4 +50,16 @@ fn unique_name(prefix: &str) -> String {
         .as_nanos();
 
     format!("{prefix}-{nanos}")
+}
+
+fn strip_windows_verbatim_prefix(path: &Path) -> std::path::PathBuf {
+    let path = path.to_string_lossy();
+
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+        std::path::PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = path.strip_prefix(r"\\?\") {
+        std::path::PathBuf::from(rest)
+    } else {
+        std::path::PathBuf::from(path.as_ref())
+    }
 }

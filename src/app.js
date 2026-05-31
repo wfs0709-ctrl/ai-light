@@ -2,9 +2,12 @@ const tauriEvent = window.__TAURI__?.event;
 const tauriCore = window.__TAURI__?.core;
 
 let lights = [];
+const lightElements = new Map();
 
 const container = document.getElementById("lights-container");
 const menu = document.getElementById("menu");
+const standbyLight = createStandbyLight();
+container.appendChild(standbyLight);
 
 tauriEvent?.listen("state-changed", (event) => {
   lights = Array.isArray(event.payload) ? event.payload : [];
@@ -24,10 +27,24 @@ document.addEventListener("keydown", (event) => {
 });
 
 function render() {
-  container.replaceChildren(createStandbyLight());
+  const visibleProjectIds = new Set(lights.map((light) => light.project_id));
 
   for (const light of lights) {
-    container.appendChild(createProjectLight(light));
+    let element = lightElements.get(light.project_id);
+    if (!element) {
+      element = createProjectLight(light);
+      lightElements.set(light.project_id, element);
+      container.appendChild(element);
+    }
+
+    updateProjectLight(element, light);
+  }
+
+  for (const [projectId, element] of lightElements) {
+    if (!visibleProjectIds.has(projectId)) {
+      element.remove();
+      lightElements.delete(projectId);
+    }
   }
 }
 
@@ -42,9 +59,6 @@ function createStandbyLight() {
   root.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     showMenu(event.clientX, event.clientY, [
-      ["Settings", () => safeInvoke("open_settings")],
-      ["Pause", () => safeInvoke("pause_monitoring")],
-      ["Resume", () => safeInvoke("resume_monitoring")],
       ["Quit", () => safeInvoke("quit_app")],
     ]);
   });
@@ -58,27 +72,28 @@ function createProjectLight(lightState) {
     status: lightState.status,
     title: tooltipFor(lightState),
   });
-
-  if (lightState.status === "Error" || lightState.status === "Done") {
-    root.classList.add("is-actionable");
-  }
+  root.dataset.projectId = lightState.project_id;
 
   root.addEventListener("click", () => {
-    if (lightState.status === "Error" || lightState.status === "Done") {
-      safeInvoke("confirm_light", { projectId: lightState.project_id });
+    const projectId = root.dataset.projectId;
+    const status = root.dataset.status;
+    if (status === "Error" || status === "Done") {
+      safeInvoke("confirm_light", { projectId });
     }
   });
 
   root.addEventListener("contextmenu", (event) => {
     event.preventDefault();
+    const projectId = root.dataset.projectId;
     showMenu(event.clientX, event.clientY, [
-      ["Open", () => safeInvoke("open_project", { projectId: lightState.project_id })],
-      ["Copy Path", () => copyProjectPath(lightState.project_id)],
-      ["Logs", () => safeInvoke("open_session_logs", { projectId: lightState.project_id })],
-      ["Remove", () => safeInvoke("remove_light", { projectId: lightState.project_id })],
+      ["Open", () => safeInvoke("open_project", { projectId })],
+      ["Copy Path", () => copyProjectPath(projectId)],
+      ["Logs", () => safeInvoke("open_session_logs", { projectId })],
+      ["Remove", () => safeInvoke("remove_light", { projectId })],
     ]);
   });
 
+  updateProjectLight(root, lightState);
   return root;
 }
 
@@ -104,6 +119,27 @@ function createLightElement({ label, status, title, standby = false }) {
 
   root.append(housing, labelEl);
   return root;
+}
+
+function updateProjectLight(root, lightState) {
+  root.dataset.projectId = lightState.project_id;
+  root.dataset.status = lightState.status;
+  root.title = tooltipFor(lightState);
+  root.classList.toggle(
+    "is-actionable",
+    lightState.status === "Error" || lightState.status === "Done",
+  );
+
+  const label = root.querySelector(".light-label");
+  if (label) {
+    label.textContent = lightState.project_label || "unknown";
+  }
+
+  root.querySelector(".lamp.red")?.classList.toggle("on", lightState.status === "Error");
+  root
+    .querySelector(".lamp.yellow")
+    ?.classList.toggle("on", lightState.status === "Working");
+  root.querySelector(".lamp.green")?.classList.toggle("on", lightState.status === "Done");
 }
 
 function createLamp(color, isOn) {
@@ -174,6 +210,5 @@ async function copyProjectPath(projectId) {
   }
 }
 
-render();
 refreshLights();
 window.setInterval(refreshLights, 1000);

@@ -1,6 +1,7 @@
 use ai_light::aggregator::StateAggregator;
 use ai_light::hook_installer::{check_hooks_installed, install_hooks, preview_hook_config};
 use ai_light::types::LightState;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -26,7 +27,8 @@ pub fn open_project(project_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_session_logs(project_id: String) -> Result<(), String> {
-    open_path(&project_id)
+    let path = claude_project_log_dir(&project_id)?;
+    open_path(&path.to_string_lossy())
 }
 
 #[tauri::command]
@@ -68,6 +70,27 @@ fn open_path(path: &str) -> Result<(), String> {
 
     command.spawn().map_err(|error| error.to_string())?;
     Ok(())
+}
+
+fn claude_project_log_dir(project_id: &str) -> Result<PathBuf, String> {
+    let home = home_dir().ok_or_else(|| "failed to resolve home directory".to_string())?;
+    Ok(home
+        .join(".claude")
+        .join("projects")
+        .join(encode_claude_project_dir(project_id)))
+}
+
+fn encode_claude_project_dir(project_id: &str) -> String {
+    project_id
+        .replace("\\\\?\\", "")
+        .replace(':', "")
+        .replace(['\\', '/'], "-")
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
 }
 
 fn platform_open_command(path: &str) -> Result<std::process::Command, String> {

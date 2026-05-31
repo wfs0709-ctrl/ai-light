@@ -8,13 +8,14 @@ use std::process::Command;
 /// path component shown under the traffic light.
 pub fn identify_project(cwd: &Path) -> (String, String) {
     let project_path = find_git_root(cwd).unwrap_or_else(|| normalize_path(cwd));
+    let project_id = display_path(&project_path);
     let project_label = project_path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("unknown")
         .to_string();
 
-    (project_path.to_string_lossy().to_string(), project_label)
+    (project_id, project_label)
 }
 
 fn find_git_root(cwd: &Path) -> Option<PathBuf> {
@@ -43,6 +44,20 @@ fn normalize_path(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
+fn display_path(path: &Path) -> String {
+    strip_windows_verbatim_prefix(&path.to_string_lossy())
+}
+
+fn strip_windows_verbatim_prefix(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = path.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        path.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,11 +71,23 @@ mod tests {
 
         assert_eq!(
             project_id,
-            normalize_path(&cwd).to_string_lossy().to_string()
+            display_path(&normalize_path(&cwd))
         );
         assert_eq!(project_label, cwd.file_name().unwrap().to_string_lossy());
 
         std::fs::remove_dir_all(cwd).unwrap();
+    }
+
+    #[test]
+    fn strips_windows_verbatim_prefix_for_display() {
+        assert_eq!(
+            strip_windows_verbatim_prefix(r"\\?\N:\AI\ai_light"),
+            r"N:\AI\ai_light"
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix(r"\\?\UNC\server\share"),
+            r"\\server\share"
+        );
     }
 
     fn unique_name(prefix: &str) -> String {
