@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
 const STALE_WORKING_AFTER: Duration = Duration::from_secs(10 * 60);
+const REMOVE_INACTIVE_AFTER: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodexSessionMeta {
@@ -33,6 +34,7 @@ struct WatchedRollout {
     meta: Option<CodexSessionMeta>,
     added_to_aggregator: bool,
     last_status: Option<Status>,
+    last_activity_at: SystemTime,
 }
 
 pub fn start_codex_watcher(aggregator: Arc<StateAggregator>) -> io::Result<()> {
@@ -80,7 +82,7 @@ fn poll_rollout_root(
         if files.contains_key(&path) {
             process_new_lines(aggregator, files, &path)?;
             if let Some(watched) = files.get_mut(&path) {
-                mark_stale_working_session(aggregator, watched, &path)?;
+                update_inactive_session(aggregator, watched, &path)?;
             }
             continue;
         }
@@ -90,6 +92,7 @@ fn poll_rollout_root(
             meta: None,
             added_to_aggregator: false,
             last_status: None,
+            last_activity_at: SystemTime::now(),
         };
 
         if baseline {
@@ -103,7 +106,7 @@ fn poll_rollout_root(
         }
 
         if let Some(watched) = files.get_mut(&path) {
-            mark_stale_working_session(aggregator, watched, &path)?;
+            update_inactive_session(aggregator, watched, &path)?;
         }
     }
 
@@ -187,6 +190,7 @@ fn apply_codex_event(
                 watched.added_to_aggregator = true;
                 watched.last_status = Some(Status::Idle);
             }
+            watched.last_activity_at = SystemTime::now();
             watched.meta = Some(meta);
         }
         CodexLineEvent::Status(status) => {
@@ -201,25 +205,23 @@ fn apply_codex_event(
                 aggregator.update_session_status(&meta.session_id, status);
             }
             watched.last_status = Some(status);
+            watched.last_activity_at = SystemTime::now();
         }
         CodexLineEvent::ToolCall(tool_call) => {
             if let Some(meta) = &watched.meta {
                 aggregator.set_last_tool_call(&meta.session_id, tool_call);
             }
+            watched.last_activity_at = SystemTime::now();
         }
         CodexLineEvent::Ignore => {}
     }
 }
 
-fn mark_stale_working_session(
+fn update_inactive_session(
     aggregator: &StateAggregator,
     watched: &mut WatchedRollout,
     path: &Path,
 ) -> io::Result<()> {
-    if watched.last_status != Some(Status::Working) {
-        return Ok(());
-    }
-
     let Some(meta) = &watched.meta else {
         return Ok(());
     };
@@ -229,13 +231,30 @@ fn mark_stale_working_session(
         return Ok(());
     };
 
-    if age >= STALE_WORKING_AFTER {
+    if watched.last_status == Some(Status::Working) && age >= STALE_WORKING_AFTER {
         aggregator.update_session_status(&meta.session_id, Status::Error);
         watched.last_status = Some(Status::Error);
+        watched.last_activity_at = SystemTime::now();
         log_watcher_note(&format!(
             "marked stale Codex session {} as error after {}s without rollout updates",
             meta.session_id,
             age.as_secs()
+        ));
+    }
+
+    let Ok(inactive_for) = SystemTime::now().duration_since(watched.last_activity_at) else {
+        return Ok(());
+    };
+
+    if inactive_for >= REMOVE_INACTIVE_AFTER && watched.last_status != Some(Status::Working) {
+        aggregator.remove_session(&meta.session_id);
+        watched.added_to_aggregator = false;
+        watched.last_status = None;
+        watched.last_activity_at = SystemTime::now();
+        log_watcher_note(&format!(
+            "removed inactive Codex session {} after {}s without rollout events",
+            meta.session_id,
+            inactive_for.as_secs()
         ));
     }
 
@@ -589,10 +608,11 @@ mod tests {
             }),
             added_to_aggregator: true,
             last_status: Some(Status::Working),
+            last_activity_at: SystemTime::now(),
         };
         aggregator.add_session("s1".to_string(), Tool::Codex, &project, Status::Working);
 
-        mark_stale_working_session(&aggregator, &mut watched, &rollout).unwrap();
+        update_inactive_session(&aggregator, &mut watched, &rollout).unwrap();
         assert_eq!(aggregator.get_lights()[0].status, Status::Working);
 
         let old_time = filetime::FileTime::from_system_time(
@@ -600,9 +620,38 @@ mod tests {
         );
         filetime::set_file_mtime(&rollout, old_time).unwrap();
 
-        mark_stale_working_session(&aggregator, &mut watched, &rollout).unwrap();
+        update_inactive_session(&aggregator, &mut watched, &rollout).unwrap();
         assert_eq!(aggregator.get_lights()[0].status, Status::Error);
         assert_eq!(watched.last_status, Some(Status::Error));
+
+        let _ = fs::remove_dir_all(project);
+    }
+
+    #[test]
+    fn inactive_done_session_is_removed() {
+        let project = std::env::temp_dir().join(unique_name("ai-light-codex-project"));
+        fs::create_dir_all(&project).unwrap();
+        let rollout = project.join("rollout-2026-05-31T00-00-00-s1.jsonl");
+        fs::write(&rollout, "").unwrap();
+
+        let aggregator = StateAggregator::new();
+        let mut watched = WatchedRollout {
+            offset: 0,
+            meta: Some(CodexSessionMeta {
+                session_id: "s1".to_string(),
+                cwd: project.clone(),
+            }),
+            added_to_aggregator: true,
+            last_status: Some(Status::Done),
+            last_activity_at: SystemTime::now() - REMOVE_INACTIVE_AFTER - Duration::from_secs(1),
+        };
+        aggregator.add_session("s1".to_string(), Tool::Codex, &project, Status::Done);
+
+        update_inactive_session(&aggregator, &mut watched, &rollout).unwrap();
+
+        assert!(aggregator.get_lights().is_empty());
+        assert!(!watched.added_to_aggregator);
+        assert_eq!(watched.last_status, None);
 
         let _ = fs::remove_dir_all(project);
     }

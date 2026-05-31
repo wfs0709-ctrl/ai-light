@@ -55,12 +55,8 @@ fn hook_http_server_drives_session_lifecycle() {
 
     eventually(|| {
         let lights = aggregator.get_lights();
-        lights.len() == 1 && lights[0].status == Status::Done
+        lights.is_empty()
     });
-
-    let project_id = aggregator.get_lights()[0].project_id.clone();
-    aggregator.confirm_light(&project_id);
-    assert!(aggregator.get_lights().is_empty());
 
     let _ = std::fs::remove_dir_all(project_dir);
     let _ = std::fs::remove_dir_all(config_dir);

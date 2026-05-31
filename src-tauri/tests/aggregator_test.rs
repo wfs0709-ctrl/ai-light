@@ -39,19 +39,13 @@ fn remove_working_session_removes_empty_light() {
 }
 
 #[test]
-fn done_light_is_retained_until_confirmed() {
+fn done_light_is_removed_when_session_ends() {
     let agg = StateAggregator::new();
     let cwd = PathBuf::from("/home/user/project");
 
     agg.add_session("s1".to_string(), Tool::ClaudeCode, &cwd, Status::Done);
-    let project_id = agg.get_lights()[0].project_id.clone();
     agg.remove_session("s1");
 
-    let lights = agg.get_lights();
-    assert_eq!(lights.len(), 1);
-    assert_eq!(lights[0].status, Status::Done);
-
-    agg.confirm_light(&project_id);
     assert!(agg.get_lights().is_empty());
 }
 

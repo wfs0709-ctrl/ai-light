@@ -98,7 +98,7 @@ impl StateAggregator {
                 light.last_event_at = Instant::now();
 
                 if light.sessions.is_empty() {
-                    matches!(light.status, Status::Idle | Status::Working)
+                    true
                 } else {
                     light.aggregate_status();
                     false
@@ -247,7 +247,7 @@ fn remove_existing_session(state: &mut AggregatorState, session_id: &str) {
             .retain(|session| session.session_id != session_id);
 
         if light.sessions.is_empty() {
-            matches!(light.status, Status::Idle | Status::Working)
+            true
         } else {
             light.aggregate_status();
             false
