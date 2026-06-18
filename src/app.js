@@ -8,15 +8,15 @@ let lights = [];
 const lightElements = new Map();
 let lastWindowSize = { width: 0, height: 0 };
 let resizeFrame = 0;
-const WINDOW_GUTTER_X = 8;
-const WINDOW_GUTTER_Y = 26;
-const WINDOW_PAINT_OVERFLOW_X_PER_LIGHT = 16;
+const WINDOW_GUTTER_X = 0;
+const WINDOW_GUTTER_Y = 0;
+const WINDOW_PAINT_OVERFLOW_X_PER_LIGHT = 0;
 const MENU_EDGE_GUTTER = 12;
 
 const container = document.getElementById("lights-container");
 const menu = document.getElementById("menu");
-const appHandle = createAppHandle();
-container.appendChild(appHandle);
+const standbyLight = createStandbyLight();
+container.appendChild(standbyLight);
 
 tauriEvent?.listen("state-changed", (event) => {
   lights = Array.isArray(event.payload) ? event.payload : [];
@@ -82,7 +82,7 @@ document.addEventListener("pointerup", () => {
 
 function render() {
   const visibleProjectIds = new Set(lights.map((light) => light.project_id));
-  appHandle.hidden = lights.length > 0;
+  standbyLight.hidden = lights.length > 0;
 
   for (const light of lights) {
     let element = lightElements.get(light.project_id);
@@ -105,11 +105,13 @@ function render() {
   scheduleWindowResize();
 }
 
-function createAppHandle() {
-  const root = document.createElement("section");
-  root.className = "app-handle";
-  root.title = "AI Light";
-  root.textContent = "AI";
+function createStandbyLight() {
+  const root = createLightElement({
+    label: "AI Light",
+    status: "Idle",
+    title: "AI Light\nIdle",
+    standby: true,
+  });
 
   root.addEventListener("contextmenu", (event) => {
     event.preventDefault();
@@ -117,6 +119,10 @@ function createAppHandle() {
       ["Settings", () => safeInvoke("open_settings")],
       ["Quit", () => safeInvoke("quit_app")],
     ]);
+  });
+
+  root.addEventListener("click", () => {
+    openCodex();
   });
 
   return root;
@@ -131,22 +137,26 @@ function createProjectLight(lightState) {
   root.dataset.projectId = lightState.project_id;
 
   root.addEventListener("click", () => {
-    const projectId = root.dataset.projectId;
-    const status = root.dataset.status;
-    if (status === "Error" || status === "Done") {
-      safeInvoke("confirm_light", { projectId });
-    }
+    openCodex(root.dataset.codexSessionId || null);
   });
 
   root.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     const projectId = root.dataset.projectId;
-    showMenu(event.clientX, event.clientY, [
-      ["Open", () => safeInvoke("open_project", { projectId })],
+    const codexSessionId = root.dataset.codexSessionId || null;
+    const menuItems = [
+      ["Open Codex", () => openCodex(codexSessionId)],
+      ["Open Folder", () => safeInvoke("open_project", { projectId })],
       ["Copy Path", () => copyProjectPath(projectId)],
       ["Settings", () => safeInvoke("open_settings")],
-      ["Remove", () => safeInvoke("remove_light", { projectId })],
-    ]);
+    ];
+
+    if (root.dataset.status === "Error" || root.dataset.status === "Done") {
+      menuItems.push(["Clear", () => safeInvoke("confirm_light", { projectId })]);
+    }
+
+    menuItems.push(["Remove", () => safeInvoke("remove_light", { projectId })]);
+    showMenu(event.clientX, event.clientY, menuItems);
   });
 
   updateProjectLight(root, lightState);
@@ -158,47 +168,46 @@ function createLightElement({ label, status, title, standby = false }) {
   root.className = `traffic-light${standby ? " standby" : ""}`;
   root.title = title;
   root.dataset.status = status;
+  root.dataset.label = label || "unknown";
 
-  const housing = document.createElement("div");
-  housing.className = "light-housing";
+  const panel = document.createElement("div");
+  panel.className = "panel-art";
+  panel.setAttribute("aria-hidden", "true");
 
-  housing.appendChild(createLamp("red", status === "Error"));
-  housing.appendChild(createLamp("yellow", status === "Working"));
-  housing.appendChild(createLamp("green", status === "Done"));
+  const redLamp = document.createElement("div");
+  redLamp.className = "status-lamp status-lamp-red";
 
-  const labelEl = document.createElement("div");
-  labelEl.className = "light-label";
-  labelEl.textContent = label || "unknown";
+  const yellowLamp = document.createElement("div");
+  yellowLamp.className = "status-lamp status-lamp-yellow";
 
-  root.append(labelEl, housing);
+  const greenLamp = document.createElement("div");
+  greenLamp.className = "status-lamp status-lamp-green";
+
+  root.append(panel, redLamp, yellowLamp, greenLamp);
   return root;
 }
 
 function updateProjectLight(root, lightState) {
   root.dataset.projectId = lightState.project_id;
   root.dataset.status = lightState.status;
+  root.dataset.label = lightState.project_label || "unknown";
+  root.dataset.codexSessionId = selectCodexSessionId(lightState) || "";
   root.title = tooltipFor(lightState);
-  root.classList.toggle(
-    "is-actionable",
-    lightState.status === "Error" || lightState.status === "Done",
-  );
-
-  const label = root.querySelector(".light-label");
-  if (label) {
-    label.textContent = lightState.project_label || "unknown";
-  }
-
-  root.querySelector(".lamp.red")?.classList.toggle("on", lightState.status === "Error");
-  root
-    .querySelector(".lamp.yellow")
-    ?.classList.toggle("on", lightState.status === "Working");
-  root.querySelector(".lamp.green")?.classList.toggle("on", lightState.status === "Done");
+  root.classList.add("is-actionable");
 }
 
-function createLamp(color, isOn) {
-  const lamp = document.createElement("div");
-  lamp.className = `lamp ${color}${isOn ? " on" : ""}`;
-  return lamp;
+function selectCodexSessionId(lightState) {
+  const sessions = Array.isArray(lightState.sessions) ? lightState.sessions : [];
+  const codexSessions = sessions.filter((session) => session.tool === "Codex");
+  if (codexSessions.length === 0) {
+    return null;
+  }
+
+  const matchingStatus = [...codexSessions]
+    .reverse()
+    .find((session) => session.status === lightState.status);
+
+  return (matchingStatus || codexSessions[codexSessions.length - 1]).session_id || null;
 }
 
 function tooltipFor(lightState) {
@@ -344,6 +353,10 @@ async function safeInvoke(command, payload) {
     console.debug(command, error);
     return undefined;
   }
+}
+
+function openCodex(sessionId = null) {
+  return safeInvoke("open_codex", { sessionId });
 }
 
 async function refreshLights() {

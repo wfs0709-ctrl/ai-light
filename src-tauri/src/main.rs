@@ -32,6 +32,7 @@ fn main() {
             ipc::get_lights,
             ipc::get_diagnostics,
             ipc::open_project,
+            ipc::open_codex,
             ipc::open_session_logs,
             ipc::open_app_log,
             ipc::get_app_config,
